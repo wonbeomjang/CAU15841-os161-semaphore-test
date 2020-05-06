@@ -50,11 +50,19 @@ static struct semaphore *testsem;
 static struct lock *testlock;
 static struct cv *testcv;
 static struct semaphore *donesem;
+static struct semaphore *intersectsem[4];
+
+typedef enum { NORTH, WEST, SOUTH, EAST } direction;
+typedef enum { RIGHT, STRAIGHT, LEFT } rotation;
+const char *direction_char[4] = { "NORTH" , "WEST", "SOUTH", "EAST" };
+const char *rotation_char[3] = { "RIGHT",  "STRAIGHT", "LEFT" };
+const char *intersec_char[4] = { "NE", "NW", "SE", "SW"};
 
 static
 void
 inititems(void)
 {
+	int i;
 	if (testsem==NULL) {
 		testsem = sem_create("testsem", 2);
 		if (testsem == NULL) {
@@ -79,23 +87,43 @@ inititems(void)
 			panic("synchtest: sem_create failed\n");
 		}
 	}
+	for (i = 0; i < 4; i++) {
+		if (intersectsem[i]==NULL) {
+			intersectsem[i]= sem_create(intersec_char[i], 1);
+			if (intersectsem[i] == NULL) {
+			panic("synchtest: sem_create failed\n");
+		}
+		}
+	}
+}
+
+static
+direction
+getrotation(direction approch, direction destination) {
+	return (destination - approch + 4) % 4 - 1;
 }
 
 static
 void
 semtestthread(void *junk, unsigned long num)
 {
-	int i;
 	(void)junk;
+	direction car_approach; 
+	direction car_destination; 
+	rotation car_roatation;
 
 	/*
 	 * Only one of these should print at a time.
 	 */
 	P(testsem);
-	kprintf("Thread %2lu: ", num);
-	for (i=0; i<NSEMLOOPS; i++) {
-		kprintf("%c", (int)num+64);
-	}
+
+	car_approach = random() % 4;
+	car_destination = random() % 4;
+	while(car_approach == car_destination) car_destination = random() % 4;
+	car_roatation = getrotation(car_approach, car_destination);
+	
+	kprintf("Car number %2lu: | Apporching from %5s | Destination is %5s | Rotation %5s", 
+			num, direction_char[car_approach], direction_char[car_destination], rotation_char[car_roatation]);
 	kprintf("\n");
 	V(donesem);
 }
