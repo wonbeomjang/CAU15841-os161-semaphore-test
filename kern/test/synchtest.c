@@ -51,18 +51,59 @@ static struct lock *testlock;
 static struct cv *testcv;
 static struct semaphore *donesem;
 static struct semaphore *intersectsem[4];
+static struct semaphore *carsem;
+static struct semaphore *printsem;
 
 typedef enum { NORTH, WEST, SOUTH, EAST } direction;
 typedef enum { RIGHT, STRAIGHT, LEFT } rotation;
+typedef enum { NW, SW, SE, NE } intersec;
 const char *direction_char[4] = { "NORTH" , "WEST", "SOUTH", "EAST" };
 const char *rotation_char[3] = { "RIGHT",  "STRAIGHT", "LEFT" };
-const char *intersec_char[4] = { "NE", "NW", "SE", "SW"};
+const char *intersec_char[4] = { "NW", "SW", "SE", "NE"};
+
+static
+void
+initcarsem(void) 
+{
+	int i;
+	for (i = 0; i < 4; i++) {
+		if (intersectsem[i]==NULL) {
+			intersectsem[i]= sem_create(intersec_char[i], 1);
+			if (intersectsem[i] == NULL) {
+				panic("synchtest: sem_create failed\n");
+			}
+		}
+	}
+	if (carsem==NULL) {
+		carsem = sem_create("carsem", 3);
+		if(carsem == NULL) {
+			panic("synchtest: sem_create failed\n");
+		}
+	}
+	if (printsem==NULL) {
+		printsem = sem_create("print", 1);
+		if(printsem == NULL) {
+			panic("synchtest: sem_create faild\n");
+		}
+	}
+	if (donesem==NULL) {
+		donesem = sem_create("donesem", 0);
+		if (donesem == NULL) {
+			panic("synchtest: sem_create failed\n");
+		}
+	}
+	if (testsem==NULL) {
+		testsem = sem_create("testsem", 2);
+		if (testsem == NULL) {
+			panic("synchtest: sem_create failed\n");
+		}
+	}
+}
 
 static
 void
 inititems(void)
 {
-	int i;
 	if (testsem==NULL) {
 		testsem = sem_create("testsem", 2);
 		if (testsem == NULL) {
@@ -87,20 +128,85 @@ inititems(void)
 			panic("synchtest: sem_create failed\n");
 		}
 	}
-	for (i = 0; i < 4; i++) {
-		if (intersectsem[i]==NULL) {
-			intersectsem[i]= sem_create(intersec_char[i], 1);
-			if (intersectsem[i] == NULL) {
-			panic("synchtest: sem_create failed\n");
-		}
-		}
-	}
 }
 
 static
-direction
+void
+printintersecstate(void) {
+	P(printsem);
+	int i;
+	kprintf("\t\t[");
+	for(i = 0; i < 3; i++)
+		if(!intersectsem[i]->sem_count)
+			kprintf("%2s ", intersectsem[i]->sem_name);
+	kprintf("]: %d\n", carsem->sem_count);
+	V(printsem);
+}
+
+static
+rotation
 getrotation(direction approch, direction destination) {
 	return (destination - approch + 4) % 4 - 1;
+}
+
+static
+void
+goright(unsigned long carnum, direction approach) {
+	P(carsem);
+	P(intersectsem[(approach) % 4]);
+
+	P(printsem); kprintf("[%7s] Car number %2lu: | %5s         ", "Enter", carnum, intersec_char[(approach) % 4]); V(printsem);
+	printintersecstate();
+
+	P(printsem); kprintf("[%7s] Car number %2lu: | %5s         ", "Exit", carnum, intersec_char[(approach) % 4]); V(printsem);
+	V(intersectsem[(approach) % 4]);
+	V(carsem);
+	printintersecstate();
+}
+
+static 
+void
+gostraight(unsigned long carnum, direction approach) {
+	P(carsem);
+	P(intersectsem[(approach) % 4]);
+
+	P(printsem); kprintf("[%7s] Car number %2lu: | %5s         ", "Enter", carnum, intersec_char[(approach) % 4]); V(printsem);
+	printintersecstate();
+
+	P(intersectsem[(approach + 1) % 4]);
+	P(printsem); kprintf("[%7s] Car number %2lu: | %5s -> %5s  ", "Moving", carnum, intersec_char[(approach) % 4], intersec_char[(approach + 1) % 4]); V(printsem);
+	V(intersectsem[(approach) % 4]);
+	printintersecstate();
+
+	P(printsem); kprintf("[%7s] Car number %2lu: | %5s         ", "Exit", carnum, intersec_char[(approach + 1) % 4]); V(printsem);
+	V(intersectsem[(approach + 1) % 4]);
+	V(carsem);
+	printintersecstate();
+}
+
+static
+void
+goleft(unsigned long carnum, direction approach) {
+	P(carsem);
+	P(intersectsem[(approach) % 4]);
+
+	P(printsem); kprintf("[%7s] Car number %2lu: | %5s         ", "Enter", carnum, intersec_char[(approach) % 4]); V(printsem);
+	printintersecstate();
+
+	P(intersectsem[(approach + 1) % 4]);
+	P(printsem); kprintf("[%7s] Car number %2lu: | %5s -> %5s  ", "Moving", carnum, intersec_char[(approach) % 4], intersec_char[(approach + 1) % 4]); V(printsem);
+	V(intersectsem[(approach) % 4]);
+	printintersecstate();
+
+	P(intersectsem[(approach + 2) % 4]);
+	P(printsem); kprintf("[%7s] Car number %2lu: | %5s -> %5s  ", "Moving", carnum, intersec_char[(approach + 1) % 4], intersec_char[(approach + 2) % 4]); V(printsem);
+	V(intersectsem[(approach + 1) % 4]);
+	printintersecstate();
+
+	P(printsem); kprintf("[%7s] Car number %2lu: | %5s         ", "Exit", carnum, intersec_char[(approach + 2) % 4]); V(printsem);
+	V(intersectsem[(approach + 2) % 4]);
+	V(carsem);
+	printintersecstate();
 }
 
 static
@@ -112,19 +218,17 @@ semtestthread(void *junk, unsigned long num)
 	direction car_destination; 
 	rotation car_roatation;
 
-	/*
-	 * Only one of these should print at a time.
-	 */
-	P(testsem);
-
 	car_approach = random() % 4;
 	car_destination = random() % 4;
 	while(car_approach == car_destination) car_destination = random() % 4;
 	car_roatation = getrotation(car_approach, car_destination);
+
+	P(printsem); kprintf("[%7s] Car number %2lu: | %5s -> %5s | Rotation %5s\n", "Approch", num, direction_char[car_approach], direction_char[car_destination], rotation_char[car_roatation]); V(printsem);	
 	
-	kprintf("Car number %2lu: | Apporching from %5s | Destination is %5s | Rotation %5s", 
-			num, direction_char[car_approach], direction_char[car_destination], rotation_char[car_roatation]);
-	kprintf("\n");
+	if (car_roatation == STRAIGHT) gostraight(num, car_approach);
+	if (car_roatation == RIGHT) goright(num, car_approach);
+	if (car_roatation == LEFT) goleft(num, car_approach);
+
 	V(donesem);
 }
 
@@ -136,15 +240,15 @@ semtest(int nargs, char **args)
 	(void)nargs;
 	(void)args;
 
-	inititems();
+	initcarsem();
+	
 	kprintf("Starting semaphore test...\n");
 	kprintf("If this hangs, it's broken: ");
-	P(testsem);
-	P(testsem);
 	kprintf("ok\n");
 
 	for (i=0; i<NTHREADS; i++) {
 		result = thread_fork("semtest", NULL, semtestthread, NULL, i);
+
 		if (result) {
 			panic("semtest: thread_fork failed: %s\n",
 			      strerror(result));
@@ -152,13 +256,9 @@ semtest(int nargs, char **args)
 	}
 
 	for (i=0; i<NTHREADS; i++) {
-		V(testsem);
 		P(donesem);
 	}
 
-	/* so we can run it again */
-	V(testsem);
-	V(testsem);
 
 	kprintf("Semaphore test done.\n");
 	return 0;
