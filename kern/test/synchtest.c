@@ -144,6 +144,30 @@ printintersecstate(void) {
 }
 
 static
+void
+entermessage(unsigned long carnum, intersec intersecto) {
+	P(printsem);
+	 kprintf("[%7s] Car number %2lu: | %5s         ", "Enter", carnum, intersec_char[intersecto % 4]);
+	V(printsem);
+}
+
+static
+void
+movemessage(unsigned long carnum, intersec intersecfrom, intersec intersecto) {
+	P(printsem);
+	kprintf("[%7s] Car number %2lu: | %5s -> %5s  ", "Moving", carnum, intersec_char[intersecfrom % 4], intersec_char[intersecto % 4]);
+	V(printsem);
+}
+
+static
+void
+exitmessage(unsigned long carnum, intersec intersecfrom) {
+	P(printsem);
+	kprintf("[%7s] Car number %2lu: | %5s         ", "Exit", carnum, intersec_char[intersecfrom % 4]);
+	V(printsem);
+}
+
+static
 rotation
 getrotation(direction approch, direction destination) {
 	return (destination - approch + 4) % 4 - 1;
@@ -155,10 +179,10 @@ goright(unsigned long carnum, direction approach) {
 	P(carsem);
 	P(intersectsem[(approach) % 4]);
 
-	P(printsem); kprintf("[%7s] Car number %2lu: | %5s         ", "Enter", carnum, intersec_char[(approach) % 4]); V(printsem);
+	entermessage(carnum, approach % 4);
 	printintersecstate();
 
-	P(printsem); kprintf("[%7s] Car number %2lu: | %5s         ", "Exit", carnum, intersec_char[(approach) % 4]); V(printsem);
+	exitmessage(carnum, approach % 4);
 	V(intersectsem[(approach) % 4]);
 	V(carsem);
 	printintersecstate();
@@ -170,15 +194,15 @@ gostraight(unsigned long carnum, direction approach) {
 	P(carsem);
 	P(intersectsem[(approach) % 4]);
 
-	P(printsem); kprintf("[%7s] Car number %2lu: | %5s         ", "Enter", carnum, intersec_char[(approach) % 4]); V(printsem);
+	entermessage(carnum, approach % 4);
 	printintersecstate();
 
 	P(intersectsem[(approach + 1) % 4]);
-	P(printsem); kprintf("[%7s] Car number %2lu: | %5s -> %5s  ", "Moving", carnum, intersec_char[(approach) % 4], intersec_char[(approach + 1) % 4]); V(printsem);
+	movemessage(carnum, (approach) % 4, (approach + 1) % 4);
 	V(intersectsem[(approach) % 4]);
 	printintersecstate();
 
-	P(printsem); kprintf("[%7s] Car number %2lu: | %5s         ", "Exit", carnum, intersec_char[(approach + 1) % 4]); V(printsem);
+	exitmessage(carnum, (approach + 1) % 4);
 	V(intersectsem[(approach + 1) % 4]);
 	V(carsem);
 	printintersecstate();
@@ -190,20 +214,20 @@ goleft(unsigned long carnum, direction approach) {
 	P(carsem);
 	P(intersectsem[(approach) % 4]);
 
-	P(printsem); kprintf("[%7s] Car number %2lu: | %5s         ", "Enter", carnum, intersec_char[(approach) % 4]); V(printsem);
+	entermessage(carnum, approach % 4);
 	printintersecstate();
 
 	P(intersectsem[(approach + 1) % 4]);
-	P(printsem); kprintf("[%7s] Car number %2lu: | %5s -> %5s  ", "Moving", carnum, intersec_char[(approach) % 4], intersec_char[(approach + 1) % 4]); V(printsem);
+	movemessage(carnum, (approach) % 4, (approach + 1) % 4);
 	V(intersectsem[(approach) % 4]);
 	printintersecstate();
 
 	P(intersectsem[(approach + 2) % 4]);
-	P(printsem); kprintf("[%7s] Car number %2lu: | %5s -> %5s  ", "Moving", carnum, intersec_char[(approach + 1) % 4], intersec_char[(approach + 2) % 4]); V(printsem);
+	movemessage(carnum, (approach + 1) % 4, (approach + 2) % 4);
 	V(intersectsem[(approach + 1) % 4]);
 	printintersecstate();
 
-	P(printsem); kprintf("[%7s] Car number %2lu: | %5s         ", "Exit", carnum, intersec_char[(approach + 2) % 4]); V(printsem);
+	exitmessage(carnum, (approach + 1) % 4);
 	V(intersectsem[(approach + 2) % 4]);
 	V(carsem);
 	printintersecstate();
