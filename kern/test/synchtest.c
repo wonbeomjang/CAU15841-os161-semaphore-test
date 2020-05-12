@@ -75,7 +75,7 @@ initcarsem(void)
 		}
 	}
 	if (carsem==NULL) {
-		carsem = sem_create("carsem", 3);
+		carsem = sem_create("carsem", 2);
 		if(carsem == NULL) {
 			panic("synchtest: sem_create failed\n");
 		}
@@ -91,13 +91,7 @@ initcarsem(void)
 		if (donesem == NULL) {
 			panic("synchtest: sem_create failed\n");
 		}
-	}
-	if (testsem==NULL) {
-		testsem = sem_create("testsem", 2);
-		if (testsem == NULL) {
-			panic("synchtest: sem_create failed\n");
-		}
-	}
+	} 
 }
 
 static
