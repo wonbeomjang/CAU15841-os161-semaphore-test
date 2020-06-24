@@ -1,4 +1,4 @@
-# CAU15841-os161-semaphore-example
+# CAU15841-os161-semaphore-test
 
 This repository for OS assingment.
 
